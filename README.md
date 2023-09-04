@@ -6,11 +6,11 @@ This sample is provided as example material for Adopting Metal II. Within this s
 
 ### Build
 
-Xcode 8.0 or later; OSX 10.12 SDK or later
+Xcode 12.0 or later; OSX 10.15 SDK or later
 
 ### Runtime
 
-OSX 10.12 or later
+OSX 10.13 or later
 
 ### Device Feature Set
 
