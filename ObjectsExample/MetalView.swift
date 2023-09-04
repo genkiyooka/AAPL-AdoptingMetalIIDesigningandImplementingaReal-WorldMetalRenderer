@@ -179,7 +179,7 @@ class MetalView : MTKView
 	}
 	
 	func createPipelines() {
-		let lib = device!.newDefaultLibrary()!
+		let lib = device!.makeDefaultLibrary()!
 		
 		do {
 			// Shaders for lighting/shadowing
@@ -281,14 +281,17 @@ class MetalView : MTKView
 			mtLabel?.stringValue = "Multithreaded Encode"
 		}
 		
+        self.device = MTLCreateSystemDefaultDevice();
+
+        // Look for a discrete GPU
 		let devices = MTLCopyAllDevices()
-		for device in devices {
-			if !device.isLowPower {
-				self.device = device
+		for device_n in devices {
+			if !device_n.isLowPower {
+				self.device = device_n
 			}
 		}
 		
-		Swift.print(device!.name!)
+		Swift.print(self.device!.name)
 		
 		//MARK: Set up render targets in MTKView
 		
@@ -298,14 +301,14 @@ class MetalView : MTKView
 		drawableSize.height = frame.height
 		drawableSize.width = frame.width
 		
-		metalQueue = device!.makeCommandQueue()
+		metalQueue = self.device!.makeCommandQueue()
 		
 		// MARK: Constant Buffer Creation
 		// Create our constant buffers
 		// We've chosen 3 for this example; your application may need a different number
 		for _ in 1...MAX_FRAMES_IN_FLIGHT {
-			let buf : MTLBuffer = device!.makeBuffer(length: CONSTANT_BUFFER_SIZE, options: MTLResourceOptions.storageModeManaged)
-			constantBuffers.append(buf)
+			let buf : MTLBuffer? = device!.makeBuffer(length: CONSTANT_BUFFER_SIZE, options: MTLResourceOptions.storageModeManaged)
+			constantBuffers.append(buf!)
 		}
 		
 		// MARK: Shadow Texture Creation
@@ -319,7 +322,7 @@ class MetalView : MTKView
 			texDesc.usage = [MTLTextureUsage.renderTarget, MTLTextureUsage.shaderRead]
 			texDesc.storageMode = .private
 			
-			shadowMap = device!.makeTexture(descriptor: texDesc)
+			shadowMap = self.device!.makeTexture(descriptor: texDesc)
 		}
 		
 		// MARK: Main framebuffer / depth creation
@@ -426,20 +429,20 @@ class MetalView : MTKView
 	
 	// Encodes a single shadow pass
 	func encodeShadowPass(_ commandBuffer: MTLCommandBuffer, rp: MTLRenderPassDescriptor, constantBuffer: MTLBuffer, passDataOffset: Int, objectDataOffset: Int) {
-		let enc = commandBuffer.makeRenderCommandEncoder(descriptor: rp)
+		let enc = commandBuffer.makeRenderCommandEncoder(descriptor: rp)!
 		enc.setDepthStencilState(depthTestLess)
 		
 		//We're only going to draw back faces into the shadowmap
 		enc.setCullMode(MTLCullMode.front)
 		
 		// setVertexOffset will allow faster updates, but we must bind the Constant buffer once
-		enc.setVertexBuffer(constantBuffer, offset: 0, at: 1)
+		enc.setVertexBuffer(constantBuffer, offset: 0, index: 1)
 		// Bind the ShadowPass data once for all objects to see
-		enc.setVertexBuffer(constantBuffer, offset: passDataOffset, at: 2)
+		enc.setVertexBuffer(constantBuffer, offset: passDataOffset, index: 2)
 		
 		// We have one pipeline for all our objects, so only bind it once
 		enc.setRenderPipelineState(zpassPipeline!)
-		enc.setVertexBuffer(renderables[0].mesh, offset: 0, at: 0)
+		enc.setVertexBuffer(renderables[0].mesh, offset: 0, index: 0)
 		
 		var offset = objectDataOffset
 		for index in 0..<objectsToRender {
@@ -459,14 +462,14 @@ class MetalView : MTKView
 	
 	func encodeMainPass(_ enc: MTLRenderCommandEncoder, constantBuffer: MTLBuffer, passDataOffset: Int, objectDataOffset: Int) {
 		// Similar to the shadow passes, we must bind the constant buffer once before we call setVertexBytes
-		enc.setVertexBuffer(constantBuffer, offset: 0, at: 1)
-		enc.setFragmentBuffer(constantBuffer, offset: 0, at: 1)
+		enc.setVertexBuffer(constantBuffer, offset: 0, index: 1)
+		enc.setFragmentBuffer(constantBuffer, offset: 0, index: 1)
         
 		// Now bind the MainPass constants once
-		enc.setVertexBuffer(constantBuffer, offset: passDataOffset, at: 2)
-		enc.setFragmentBuffer(constantBuffer, offset: passDataOffset, at: 2)
+		enc.setVertexBuffer(constantBuffer, offset: passDataOffset, index: 2)
+		enc.setFragmentBuffer(constantBuffer, offset: passDataOffset, index: 2)
 		
-		enc.setFragmentTexture(shadowMap, at: 0)
+		enc.setFragmentTexture(shadowMap, index: 0)
 		
 		var offset = objectDataOffset
 		if drawShadowsOnCubes {
@@ -486,14 +489,14 @@ class MetalView : MTKView
 			}
 		}
         
-		enc.setVertexBuffer(renderables[0].mesh!, offset: 0, at: 0)
+		enc.setVertexBuffer(renderables[0].mesh!, offset: 0, index: 0)
 		for index in 0..<objectsToRender {
 			renderables[index].Draw(enc, offset: offset)
 			offset += MemoryLayout<ObjectData>.size
 		}
 		
 		enc.setRenderPipelineState(planeRenderPipeline!)
-		enc.setVertexBuffer(groundPlane!.mesh, offset: 0, at: 0)
+		enc.setVertexBuffer(groundPlane!.mesh, offset: 0, index: 0)
 		groundPlane!.Draw(enc, offset: offset)
 	}
 	
@@ -507,7 +510,7 @@ class MetalView : MTKView
 			mainRPDesc.depthAttachment.storeAction = .dontCare
 		}
 		
-		let enc : MTLRenderCommandEncoder = mainCommandBuffer.makeRenderCommandEncoder(descriptor: mainRPDesc)
+		let enc : MTLRenderCommandEncoder = mainCommandBuffer.makeRenderCommandEncoder(descriptor: mainRPDesc)!
 		enc.setCullMode(MTLCullMode.back)
 		
 		if depthTest {
@@ -523,7 +526,7 @@ class MetalView : MTKView
 		
 		// Draws the Scene, Depth and Shadow map to the screen
 		if showDepthAndShadow {
-			let visEnc = mainCommandBuffer.makeRenderCommandEncoder(descriptor: rpDesc)
+			let visEnc = mainCommandBuffer.makeRenderCommandEncoder(descriptor: rpDesc)!
 			
 			var viewport = MTLViewport(originX: 0.0, originY: 0.0,
 			                           width: Double(frame.width)*0.5,
@@ -533,7 +536,7 @@ class MetalView : MTKView
 			visEnc.setViewport(viewport)
 			
 			visEnc.setRenderPipelineState(texQuadVisPipeline!)
-			visEnc.setFragmentTexture(mainPassFramebuffer, at: 0)
+			visEnc.setFragmentTexture(mainPassFramebuffer, index: 0)
 			
 			visEnc.drawPrimitives(type: MTLPrimitiveType.triangleStrip, vertexStart: 0, vertexCount: 4)
 			
@@ -545,7 +548,7 @@ class MetalView : MTKView
 			visEnc.setViewport(viewport)
 			
 			visEnc.setRenderPipelineState(self.depthVisPipeline!)
-			visEnc.setFragmentTexture(self.mainPassDepthTexture, at: 0)
+			visEnc.setFragmentTexture(self.mainPassDepthTexture, index: 0)
 			
 			visEnc.drawPrimitives(type: MTLPrimitiveType.triangleStrip, vertexStart: 0, vertexCount: 4)
 			
@@ -558,17 +561,17 @@ class MetalView : MTKView
 			
 			visEnc.setViewport(viewport)
 			
-			visEnc.setFragmentTexture(shadowMap, at: 0)
+			visEnc.setFragmentTexture(shadowMap, index: 0)
 			visEnc.drawPrimitives(type: MTLPrimitiveType.triangleStrip, vertexStart: 0, vertexCount: 4)
 			
 			visEnc.endEncoding()
 		}
 		else {
 			// Draws the main pass
-			let finalEnc = mainCommandBuffer.makeRenderCommandEncoder(descriptor: rpDesc)
+			let finalEnc = mainCommandBuffer.makeRenderCommandEncoder(descriptor: rpDesc)!
 			
 			finalEnc.setRenderPipelineState(texQuadVisPipeline!)
-			finalEnc.setFragmentTexture(mainPassFramebuffer, at: 0)
+			finalEnc.setFragmentTexture(mainPassFramebuffer, index: 0)
 			
 			finalEnc.drawPrimitives(type: .triangleStrip, vertexStart: 0, vertexCount: 4)
 			
@@ -678,12 +681,14 @@ class MetalView : MTKView
         
         _ = groundPlane!.UpdateData(ptr, deltaTime: 1.0/60.0)
         
+    let myNSRange = NSMakeRange(0, mainPassOffset+(MemoryLayout<ObjectData>.stride*(objectsToRender+1)));
+    let myRange : Range<Int> = Range(myNSRange)!;
         // Mark constant buffer as modified (objectsToRender+1 because of the ground plane)
-        constantBufferForFrame.didModifyRange(NSMakeRange(0, mainPassOffset+(MemoryLayout<ObjectData>.stride*(objectsToRender+1))))
+        constantBufferForFrame.didModifyRange(myRange)
 		
 		// Create command buffers for the entire scene rendering
-		let shadowCommandBuffer : MTLCommandBuffer = metalQueue!.makeCommandBufferWithUnretainedReferences()
-		let mainCommandBuffer : MTLCommandBuffer = metalQueue!.makeCommandBufferWithUnretainedReferences()
+		let shadowCommandBuffer : MTLCommandBuffer = metalQueue!.makeCommandBufferWithUnretainedReferences()!
+		let mainCommandBuffer : MTLCommandBuffer = metalQueue!.makeCommandBufferWithUnretainedReferences()!
 		
 		// Enforce the ordering:
 		// Shadows must be completed before the main rendering pass

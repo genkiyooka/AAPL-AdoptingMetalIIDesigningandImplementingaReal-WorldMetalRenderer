@@ -26,14 +26,14 @@ class Camera
 	fileprivate var _direction : vector_float3
 	var direction : vector_float3
 	{
-		set { _direction = vector_normalize(newValue); _needsMatrixUpdate = true }
+		set { _direction = normalize(newValue); _needsMatrixUpdate = true }
 		get { return _direction }
 	}
 	
 	fileprivate var _up : vector_float3
 	var up : vector_float3
 	{
-		set { _up = vector_normalize(newValue); _needsMatrixUpdate = true }
+		set { _up = normalize(newValue); _needsMatrixUpdate = true }
 		get { return _up }
 	}
 	
@@ -55,8 +55,9 @@ class Camera
 			m.columns.1 = float4(up.x, up.y, up.z, 0.0)
 			m.columns.2 = float4(direction.x, direction.y, direction.z, 0.0)
 			m.columns.3 = float4(position.x, position.y, position.z, 1.0)
-			m = matrix_invert(m)
-			
+//            m = matrix_invert(m)
+            m = m.inverse
+
 			_needsMatrixUpdate = false
 		}
 		
@@ -108,14 +109,16 @@ func createPlane(_ device : MTLDevice) -> (MTLBuffer, Int)
     
     let length = verts.count*MemoryLayout<CFloat>.size
 	
-    let geoBuffer = device.makeBuffer(length: length, options: MTLResourceOptions.storageModeManaged)
+    let geoBuffer = device.makeBuffer(length: length, options: MTLResourceOptions.storageModeManaged) as MTLBuffer?
 
-    let geoPtr = geoBuffer.contents().bindMemory(to: CFloat.self, capacity: length)
+    let geoPtr = geoBuffer!.contents().bindMemory(to: CFloat.self, capacity: length)
     
 	geoPtr.assign(from: &verts, count: verts.count)
-	geoBuffer.didModifyRange(NSMakeRange(0, verts.count*MemoryLayout<Float>.size))
+ let myNSRange = NSMakeRange(0, verts.count*MemoryLayout<Float>.size);
+ let myRange:Range<Int> = Range(myNSRange)!
+	geoBuffer!.didModifyRange(myRange)
 	
-	return (geoBuffer, verts.count / 4)
+	return (geoBuffer!, verts.count / 4)
 }
 
 func createCube(_ device : MTLDevice) -> (MTLBuffer, MTLBuffer?, Int, Int)
@@ -166,12 +169,14 @@ func createCube(_ device : MTLDevice) -> (MTLBuffer, MTLBuffer?, Int, Int)
     let length = verts.count*MemoryLayout<CFloat>.size
 	let geoBuffer = device.makeBuffer(length: length, options: MTLResourceOptions.storageModeManaged)
     
-    let geoPtr = geoBuffer.contents().bindMemory(to: CFloat.self, capacity: length)
+    let geoPtr = geoBuffer!.contents().bindMemory(to: CFloat.self, capacity: length)
     
 	geoPtr.assign(from: &verts, count: verts.count)
-	geoBuffer.didModifyRange(NSMakeRange(0, verts.count*MemoryLayout<Float>.size))
+let myNSRange = NSMakeRange(0, verts.count*MemoryLayout<Float>.size);
+let myRange:Range<Int> = Range(myNSRange)!;
+	geoBuffer!.didModifyRange(myRange)
 	
-	return (geoBuffer, nil, 0, verts.count/6)
+	return (geoBuffer!, nil, 0, verts.count/6)
 }
 
 func getRotationAroundZ(_ radians : Float) -> matrix_float4x4
